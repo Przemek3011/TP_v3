@@ -1,263 +1,380 @@
 package checkers.server;
 
+import checkers.Game.Game;
+import checkers.Game.Bot;
+
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-import checkers.Game.Game;
 /**
- * class that represents server and handles messages from clients
+ * Example Server class handling both human players (via sockets) and bot players locally.
  */
 public class Server {
 
     private final ServerSocket serverSocket;
-    private final int numOfPlayers;
-    private final ArrayList<ClientHandler> clientHandlers;
-    private final String variant;
-    private Map<Integer, Integer> clientIdToPieceValue = new HashMap<>();
-    int MyPieceNumber;
-    int currentX,currentY;
+    private final int numOfPlayers;       
+    private final String variant;         
+    private final int numberOfBots;       
+
+    private final List<ClientHandler> clientHandlers;
+
+    private final List<Integer> allIDs = new ArrayList<>();
+
+    private final Map<Integer, Boolean> PlayerBots = new HashMap<>();
+
+    private final Map<Integer, Integer> clientIdToPieceValue = new HashMap<>();
+
+    private final Map<Integer, Bot> bots = new HashMap<>();
 
     private static int clientCounter = 0;
     private int currentTurnIndex = 0;
 
     private Game game;
-
-    private int[][] board;
-
-/**
- * constructor of server class 
- * @param serverSocket socket
- * @param numOfPlayers number of players from server application
- * @param variant variant of game
- */
-public Server(ServerSocket serverSocket, int numOfPlayers,String variant) {
-    this.variant=variant;
-    this.serverSocket = serverSocket;
-    this.numOfPlayers = numOfPlayers;
-    this.clientHandlers = new ArrayList<>();
-}
-    /** start server
-     * assign pieces to client 
-     * create game
-     */
-public void startServer(){
-    try {
-        
-        while(!serverSocket.isClosed() && clientHandlers.size() < numOfPlayers) {
-            Socket socket = serverSocket.accept();
-            System.out.println("A player connected.");
-
-            ClientHandler clientHandler = new ClientHandler(socket, this, ++clientCounter);
-            clientHandlers.add(clientHandler);
-
-            Thread thread = new Thread(clientHandler);
-            thread.start();
-        }
-        
-        System.out.println("All players connected.");
-
-        this.game = new Game(numOfPlayers, 0, variant);
-        game.getBoard();
-
-        //Assign player piece number
-        for (int i = 0; i < clientHandlers.size(); i++) {
-           
-            int clientID = clientHandlers.get(i).getClientID();
-           
-            Game tempGame = new Game(numOfPlayers, clientID, variant);
-            int pieceValue = tempGame.getNumberOnBoard(numOfPlayers, i+1);
-
-            clientIdToPieceValue.put(clientID, pieceValue);
-
-            System.out.println("Assigning Player #" + clientID 
-                               + " the piece value of " + pieceValue);
-        }
-        
-        broadcastUpdatedBoard();
-        notifyCurrentPlayer();
-
-    } catch (IOException e) {
-        System.err.println(e.getMessage());
-    }
-}
+    private int[][] board; 
 
     /**
-     * Called by each ClientHandler when it reads a command from its client.
-     * handles moves like skip or move y1 x1 y2 x2 [y3 x3]
+     * Server constructor.
+     *
+     * @param serverSocket the ServerSocket
+     * @param numOfPlayers total participants (including bots)
+     * @param variant variant for example 'd'
+     * @param numberOfBots how many bots
+     */
+    public Server(ServerSocket serverSocket, int numOfPlayers, String variant, int numberOfBots) {
+        this.serverSocket = serverSocket;
+        this.numOfPlayers = numOfPlayers;
+        this.variant = variant;
+        this.numberOfBots = numberOfBots;
+
+        this.clientHandlers = new ArrayList<>();
+    }
+
+    /**
+     * Start the server: accept humans, create bots, create the game, etc.
+     */
+    public void startServer() {
+        try {
+            // 1) Accept (numOfPlayers - numberOfBots) human players
+            while(!serverSocket.isClosed() 
+               && clientHandlers.size() < (numOfPlayers - numberOfBots)) {
+                
+                Socket socket = serverSocket.accept();
+                System.out.println("A player connected.");
+               
+                clientCounter++;
+                ClientHandler ch = new ClientHandler(socket, this, clientCounter);
+                clientHandlers.add(ch);
+
+                PlayerBots.put(clientCounter, false);
+
+                allIDs.add(clientCounter);
+
+                new Thread(ch).start();
+            }
+            this.game = new Game(numOfPlayers, 0, variant);
+            this.board = game.getBoard();
+
+            // 2) Create the bot participants
+            for(int i=0; i < numberOfBots; i++) {
+                clientCounter++;
+                System.out.println("Adding BOT with clientID=" + clientCounter);
+
+                PlayerBots.put(clientCounter, true);
+                // Create the actual Bot object
+                Bot bot = new Bot(numOfPlayers, clientCounter,game.getBoard());
+                bots.put(clientCounter, bot);
+
+                // Add to allIDs
+                allIDs.add(clientCounter);
+            }
+
+            System.out.println("All players (including bots) are set.");
+
+            // 3) Create the main game
+            // optional load board
+
+            // 4) Assign piece values to humans
+            //    We do: i-th human => new Game(...).getNumberOnBoard(..., i+1)
+            for(int i=0; i<clientHandlers.size(); i++){
+                int cID = clientHandlers.get(i).getClientID();
+                Game tmp = new Game(numOfPlayers, cID, variant);
+                int pieceVal = tmp.getNumberOnBoard(numOfPlayers, i+1);
+                clientIdToPieceValue.put(cID, pieceVal);
+
+                System.out.println("Assigning Player #" + cID 
+                    + " the piece value of " + pieceVal);
+            }
+
+            // 5) Assign piece values to bots
+            //    We can do e.g. from index=0..(numberOfBots-1) but we need the ID from allIDs or the order we added them
+            int humanCount = clientHandlers.size();
+            for(int i=0; i<numberOfBots; i++){
+                int botID = allIDs.get(humanCount ) + i  ; 
+                // or (humanCount + 1 + i) if that's how you enumerated
+                Game tmp = new Game(numOfPlayers, botID, variant);
+                int pieceVal = tmp.getNumberOnBoard(numOfPlayers, botID);
+                clientIdToPieceValue.put(botID, pieceVal);
+
+                System.out.println("Assigning BOT #" + botID
+                    + " the piece value " + pieceVal);
+            }
+
+            // 6) broadcast initial board, notify first turn
+            broadcastUpdatedBoard();
+            notifyCurrentPlayer();
+
+        } catch(IOException e) {
+            System.err.println("Error in startServer(): " + e.getMessage());
+        }
+    }
+
+    /**
+     * handleMove from a human player's command (like 'MOVE y1 x1 y2 x2' or 'SKIP').
      */
     public synchronized void handleMove(ClientHandler clientHandler, String command) {
         int clientID = clientHandler.getClientID();
-        int pieceValue = clientIdToPieceValue.get(clientID);
-        if(game.hasWon(clientIdToPieceValue.get(clientID))){switchTurn();}
-        else{
-        int playerIndex = clientHandlers.indexOf(clientHandler);
-        if (playerIndex != currentTurnIndex) {
-            clientHandler.sendMessage("SERVER: It's not your turn. Please wait.");
+        
+        // If it's a bot => ignore
+        if(Boolean.TRUE.equals(PlayerBots.get(clientID))) {
+            System.out.println("Ignoring command from BOT (id=" + clientID + ")");
             return;
         }
-    
-        String trimmed = command.trim().toUpperCase();
-    
-        if (trimmed.equals("SKIP")) {
-            broadcastMessage("SERVER: Player #" + clientHandler.getClientID() + " skipped their turn.");
+
+        // get pieceValue
+        int pieceValue = clientIdToPieceValue.get(clientID);
+        if(game.hasWon(pieceValue)){
             switchTurn();
             return;
         }
-        else if (trimmed.startsWith("MOVE")) {
+
+        // Check if it's the correct turn
+        // We see who is the current ID in allIDs
+        int currentID = allIDs.get(currentTurnIndex);
+        if(clientID != currentID){
+            clientHandler.sendMessage("SERVER: It's not your turn. Please wait.");
+            return;
+        }
+
+        String trimmed = command.trim().toUpperCase();
+        if(trimmed.equals("SKIP")){
+            broadcastMessage("SERVER: Player #" + clientID + " skipped their turn.");
+            switchTurn();
+            return;
+        }
+        else if(trimmed.startsWith("MOVE")){
             String[] parts = trimmed.split("\\s+");
-            if (parts.length < 5) {
-                clientHandler.sendMessage("SERVER: Invalid MOVE format. Use: MOVE y1 x1 y2 x2 [y3 x3] ...");
+            if(parts.length < 5){
+                clientHandler.sendMessage("SERVER: Invalid MOVE format. Use: MOVE y1 x1 y2 x2");
                 return;
             }
-            // Also, (parts.length - 1) should be even (because each cell = 2 ints).
-            // e.g. "MOVE" is 1 token, so the rest must be an even number:
-            if ((parts.length - 1) % 2 != 0) {
-                clientHandler.sendMessage("SERVER: Unbalanced coordinates. Provide pairs of x,y.");
+            if((parts.length - 1) % 2 != 0){
+                clientHandler.sendMessage("SERVER: Unbalanced coords. Provide pairs of y,x.");
                 return;
             }
-            
             try {
-                int x1 = Integer.parseInt(parts[1]);
-                int y1 = Integer.parseInt(parts[2]);
-                if(!isInBounds(x1, y1)){clientHandler.sendMessage("SERVER: Too big x or y.");
-                return;}
-                
+                int y1 = Integer.parseInt(parts[1]);
+                int x1 = Integer.parseInt(parts[2]);
+                if(!isInBounds(y1, x1)){
+                    clientHandler.sendMessage("SERVER: Out-of-bounds start coords.");
+                    return;
+                }
+
                 List<int[]> moves = new ArrayList<>();
-                for (int i = 3; i < parts.length; i += 2) {
-                    int nx = Integer.parseInt(parts[i]);
-                    int ny = Integer.parseInt(parts[i+1]);
-                    currentX=nx;
-                    currentY=ny;
-                    if(!isInBounds(currentX,currentY))
-                    {clientHandler.sendMessage("SERVER: Too big x or y.");
-                return;}
-                    moves.add(new int[]{nx, ny});
+                for(int i=3; i<parts.length; i+=2){
+                    int ny = Integer.parseInt(parts[i]);
+                    int nx = Integer.parseInt(parts[i+1]);
+                    if(!isInBounds(ny, nx)){
+                        clientHandler.sendMessage("SERVER: Out-of-bounds coords in the move list.");
+                        return;
+                    }
+                    moves.add(new int[]{ny, nx});
                 }
-    
-                int[][] board = game.getBoard();
-                if(board[x1][y1] == 0 || board[x1][y1]==1){
-                    clientHandler.sendMessage("SERVER: You picked a cell without any pieces. Choose again.");
-                    return;
-                }
-                if(board[currentX][currentY]!=1){
-                    clientHandler.sendMessage("SERVER:There is piece on end move. Choose again.");
-                    return;
 
-                }
-                if (board[x1][y1] != pieceValue) {
-                    clientHandler.sendMessage("SERVER: That piece isn't yours. You can only move your own pieces.");
+                // check piece ownership
+                int[][] currentBoard = game.getBoard();
+                if(currentBoard[y1][x1] != pieceValue){
+                    clientHandler.sendMessage("SERVER: That piece isn't yours!");
                     return;
                 }
-                if(!game.isValidMove(x1, y1, moves)){
-                    clientHandler.sendMessage("SERVER: Wrong Move.");
+                // check validity
+                if(!game.isValidMove(y1, x1, moves)){
+                    clientHandler.sendMessage("SERVER: Invalid move according to game rules.");
                     return;
                 }
-    
-                game.setGamePiece(currentX, currentY, pieceValue);
-                game.setGamePiece(x1, y1, 1);
-    
+
+                // do the move
+                int[] last = moves.get(moves.size()-1);
+                int y2 = last[0];
+                int x2 = last[1];
+
+                game.setGamePiece(y2, x2, pieceValue);
+                game.setGamePiece(y1, x1, 1);
+
                 broadcastMessage("SERVER: Player #" + clientID
-                                 + " moved from (" + x1 + "," + y1
-                                 + ") to (" + currentX + "," + currentY + ").");
-    
+                    + " moved from (" + y1 + "," + x1 
+                    + ") to (" + y2 + "," + x2 + ").");
                 broadcastUpdatedBoard();
-                if(game.hasWon(pieceValue)){
-                    broadcastMessage("SERVER: Player #" + clientID+ "has won!!");
 
+                if(game.hasWon(pieceValue)){
+                    broadcastMessage("SERVER: Player #" + clientID + " has WON!!");
                 }
                 switchTurn();
-    
-            } catch (NumberFormatException e) {
-                clientHandler.sendMessage("SERVER: Could not parse coordinates. Use: MOVE y1 x1 y2 x2 [y3 x3]");
+
+            } catch(NumberFormatException e){
+                clientHandler.sendMessage("SERVER: Could not parse coords. Use: MOVE y1 x1 y2 x2");
             }
         }
         else {
-            clientHandler.sendMessage("SERVER: Unrecognized command. Type 'SKIP' or 'MOVE y1 x1 y2 x2 [y3 x3]'.");
+            clientHandler.sendMessage("SERVER: Unrecognized command. Use SKIP or MOVE y1 x1 y2 x2");
         }
-    }}
+    }
 
     /**
-     * Moves to the next player's turn, and notifies them.
+     * Moves to the next participant in allIDs and calls notifyCurrentPlayer().
      */
     public synchronized void switchTurn() {
-        currentTurnIndex = (currentTurnIndex + 1) % clientHandlers.size();
+        currentTurnIndex = (currentTurnIndex + 1) % allIDs.size();
         notifyCurrentPlayer();
     }
 
     /**
-     * Tells the current player it's their turn.
+     * Called after switchTurn() to see who is the next participant. 
+     * If it's a bot => handleBotTurn(...), if it's human => "Your turn..."
      */
     public synchronized void notifyCurrentPlayer() {
-        ClientHandler currentPlayer = clientHandlers.get(currentTurnIndex);
-        
-        
-        int clientID = currentPlayer.getClientID();
-        
-        
-        Integer pieceValueObj = clientIdToPieceValue.get(clientID);
-        
-        if (pieceValueObj == null) {
-            currentPlayer.sendMessage("SERVER: Your piece value is not assigned. Contact the server administrator.");
-            return;
-        }
-        currentPlayer.sendMessage("SERVER: It's your turn. Make your move! (Your color is: " + game.color(pieceValueObj) + ")");
-    }
-    
+        if(allIDs.isEmpty()) return;
 
-    /**
-     * Broadcasts a message to every connected client.
-     */
-    public synchronized void broadcastMessage(String message) {
-        for (ClientHandler clientHandler : clientHandlers) {
-            clientHandler.sendMessage(message);
-        }
-    }
+        int currentID = allIDs.get(currentTurnIndex);
 
-    /**
-     * Broadcasts the current board as a string prefixed by "update:".
-     * Each client can parse and repaint their board accordingly.
-     */
-    private void broadcastUpdatedBoard() {
-        int[][] currentBoard = game.getBoard();  // from the Game
-    
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < currentBoard.length; i++) {
-            for (int j = 0; j < currentBoard[i].length; j++) {
-                sb.append(currentBoard[i][j]);
-                sb.append(",");
+        // check if BOT
+        if(Boolean.TRUE.equals(PlayerBots.get(currentID))) {
+            System.out.println("SERVER: It's BOT's turn. (id="+ currentID + ")");
+            handleBotTurn(currentID);
+        } else {
+            // human
+            // find the clientHandler
+            ClientHandler ch = findClientHandlerById(currentID);
+            if(ch != null){
+                int pieceVal = clientIdToPieceValue.get(currentID);
+                ch.sendMessage("SERVER: It's your turn. (Color: " 
+                    + game.color(pieceVal) + ")");
             }
         }
-        if (sb.length() > 0) {
-            sb.setLength(sb.length() - 1); // remove trailing comma
+    }
+
+    private ClientHandler findClientHandlerById(int id){
+        for(ClientHandler ch : clientHandlers){
+            if(ch.getClientID() == id){
+                return ch;
+            }
         }
-    
+        return null;
+    }
+
+    /**
+     * handleBotTurn: we call bot.BotMove(...), get [y1,x1,y2,x2], do the move and broadcast.
+     */
+    private synchronized void handleBotTurn(int botID) {
+        Bot bot = bots.get(botID);
+        if(bot == null){
+            System.out.println("No Bot object for clientID=" + botID);
+            switchTurn();
+            return;
+        }
+
+        int[][] currentBoard = game.getBoard();
+        int pieceValue = clientIdToPieceValue.get(botID);
+
+        int[] move = bot.BotMove(currentBoard, pieceValue); // [y1,x1,y2,x2]
+        if(move == null){
+            broadcastMessage("SERVER: Bot #" + botID + " has no moves => skip");
+            switchTurn();
+            return;
+        }
+
+        int y1 = move[0];
+        int x1 = move[1];
+        int y2 = move[2];
+        int x2 = move[3];
+
+        // simple validation
+        if(game.hasWon(botID)){
+            switchTurn();
+        }
+        if(!isInBounds(y1,x1) || !isInBounds(y2,x2)){
+            System.out.println("Bot gave invalid coords => skip "+ y1+" "+ x1+" "+y2 +" "+x2+" piece value: "+ bot.showNumberonBoard());
+            switchTurn();
+            return;
+        }
+        if(currentBoard[y1][x1] != bot.showNumberonBoard()){
+            System.out.println("Bot tried to move piece not his own => skip"+ y1+" "+x1+" piece value: "+ bot.showNumberonBoard());
+            switchTurn();
+            return;
+        }
+        if(currentBoard[y2][x2] != 1){
+            System.out.println("Bot's target cell not empty => skip");
+            switchTurn();
+            return;
+        }
+
+        // perform the move
+        game.setGamePiece(y2, x2, pieceValue);
+        game.setGamePiece(y1, x1, 1);
+
+        broadcastMessage("SERVER: Bot #" + botID
+            + " moved from (" + y1 + "," + x1 + ") to (" + y2 + "," + x2 + ").");
+        broadcastUpdatedBoard();
+
+        if(game.hasWon(pieceValue)){
+            broadcastMessage("SERVER: Bot #" + botID + " has WON!!");
+            // potentially end game
+        } else {
+            switchTurn();
+        }
+    }
+
+    private boolean isInBounds(int y, int x) {
+        board = game.getBoard();
+        return (y >= 0 && y < board.length 
+             && x >= 0 && x < board[0].length);
+    }
+
+    /**
+     * Broadcasts a message to all humans connected via clientHandlers.
+     */
+    public synchronized void broadcastMessage(String msg){
+        for(ClientHandler ch : clientHandlers){
+            ch.sendMessage(msg);
+        }
+    }
+
+    /**
+     * Broadcasts the updated board state as a CSV string (e.g. "update:1,1,2,3,...").
+     */
+    private void broadcastUpdatedBoard(){
+        int[][] currentBoard = game.getBoard();
+        StringBuilder sb = new StringBuilder();
+        for(int i=0; i<currentBoard.length; i++){
+            for(int j=0; j<currentBoard[i].length; j++){
+                sb.append(currentBoard[i][j]).append(",");
+            }
+        }
+        if(sb.length()>0) sb.setLength(sb.length()-1);
         broadcastMessage("update:" + sb.toString());
     }
 
     /**
-     * Simple helper to check board boundaries.
-     */
-    private boolean isInBounds(int x, int y) {
-        board=game.getBoard();
-        return (x >= 0 && x < board.length 
-             && y >= 0 && y < board[0].length);
-    }
-
-    /**
-     * Close the server socket if needed.
+     * Closes the server socket if needed.
      */
     public void closeServerSocket(){
         try {
-            if(serverSocket != null) {
+            if(serverSocket != null){
                 serverSocket.close();
             }
         } catch(IOException e){
-            System.out.println(e.getMessage());
+            e.printStackTrace();
         }
     }
 }

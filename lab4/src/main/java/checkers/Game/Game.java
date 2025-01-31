@@ -100,7 +100,7 @@ public class Game {
             return true;
             break;
             case 5:
-            if(Board[0][12]==5 && Board[1][11]==5 && Board[1][10]==5 &&Board[2][9]==5 && Board[2][11]==5 && Board[2][13]==5 && Board[3][9]==5 && Board[3][10]==5 && Board[3][12]==5 && Board[3][14]==5 )
+            if(Board[0][12]==5 && Board[1][11]==5 && Board[1][13]==5 &&Board[2][10]==5 && Board[2][12]==5 && Board[2][14]==5 && Board[3][9]==5 && Board[3][11]==5 && Board[3][13]==5 && Board[3][15]==5 )
             return true;
             case 6:
             if(Board[4][24]==6 && Board[4][22]==6 && Board[4][20]==6 && Board[4][18]==6 && Board[5][23]==6 && Board[5][21]==6 && Board[5][19]==6 && Board[6][22]==6 && Board[6][20]==6 && Board[7][21]==6)

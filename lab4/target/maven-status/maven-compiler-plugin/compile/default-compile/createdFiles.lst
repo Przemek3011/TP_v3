@@ -1,3 +1,4 @@
+checkers\Game\Bot.class
 checkers\server\ClientHandler.class
 checkers\server\ServerApplication.class
 checkers\client\Client.class
