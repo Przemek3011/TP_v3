@@ -92,11 +92,7 @@ public class Server {
 
             System.out.println("All players (including bots) are set.");
 
-            // 3) Create the main game
-            // optional load board
-
-            // 4) Assign piece values to humans
-            //    We do: i-th human => new Game(...).getNumberOnBoard(..., i+1)
+         
             for(int i=0; i<clientHandlers.size(); i++){
                 int cID = clientHandlers.get(i).getClientID();
                 Game tmp = new Game(numOfPlayers, cID, variant);
@@ -108,11 +104,10 @@ public class Server {
             }
 
             // 5) Assign piece values to bots
-            //    We can do e.g. from index=0..(numberOfBots-1) but we need the ID from allIDs or the order we added them
             int humanCount = clientHandlers.size();
             for(int i=0; i<numberOfBots; i++){
                 int botID = allIDs.get(humanCount ) + i  ; 
-                // or (humanCount + 1 + i) if that's how you enumerated
+                
                 Game tmp = new Game(numOfPlayers, botID, variant);
                 int pieceVal = tmp.getNumberOnBoard(numOfPlayers, botID);
                 clientIdToPieceValue.put(botID, pieceVal);
@@ -121,7 +116,7 @@ public class Server {
                     + " the piece value " + pieceVal);
             }
 
-            // 6) broadcast initial board, notify first turn
+          
             broadcastUpdatedBoard();
             notifyCurrentPlayer();
 
@@ -136,13 +131,13 @@ public class Server {
     public synchronized void handleMove(ClientHandler clientHandler, String command) {
         int clientID = clientHandler.getClientID();
         
-        // If it's a bot => ignore
+       
         if(Boolean.TRUE.equals(PlayerBots.get(clientID))) {
             System.out.println("Ignoring command from BOT (id=" + clientID + ")");
             return;
         }
 
-        // get pieceValue
+        
         int pieceValue = clientIdToPieceValue.get(clientID);
         if(game.hasWon(pieceValue)){
             switchTurn();
@@ -253,8 +248,7 @@ public class Server {
             System.out.println("SERVER: It's BOT's turn. (id="+ currentID + ")");
             handleBotTurn(currentID);
         } else {
-            // human
-            // find the clientHandler
+         
             ClientHandler ch = findClientHandlerById(currentID);
             if(ch != null){
                 int pieceVal = clientIdToPieceValue.get(currentID);
