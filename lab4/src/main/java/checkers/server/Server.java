@@ -2,6 +2,7 @@ package checkers.server;
 
 import checkers.Game.Game;
 import checkers.Game.Bot;
+import checkers.database.GameService;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -32,7 +33,10 @@ public class Server {
     private int currentTurnIndex = 0;
 
     private Game game;
-    private int[][] board; 
+    private int[][] board;
+
+    private final GameService gameService;
+    private int moveNo = 0;
 
     /**
      * Server constructor.
@@ -49,6 +53,8 @@ public class Server {
         this.numberOfBots = numberOfBots;
 
         this.clientHandlers = new ArrayList<>();
+
+        this.gameService = new GameService();
     }
 
     /**
@@ -73,7 +79,7 @@ public class Server {
 
                 new Thread(ch).start();
             }
-            this.game = new Game(numOfPlayers, 0, variant);
+            this.game = new Game(numOfPlayers, 0, variant, gameService);
             this.board = game.getBoard();
 
             // 2) Create the bot participants
@@ -206,6 +212,9 @@ public class Server {
 
                 game.setGamePiece(y2, x2, pieceValue);
                 game.setGamePiece(y1, x1, 1);
+
+                // Save move to database.
+                gameService.saveMove(++moveNo, x1, y1, x2, y2);
 
                 broadcastMessage("SERVER: Player #" + clientID
                     + " moved from (" + y1 + "," + x1 

@@ -1,5 +1,7 @@
 package checkers.Game;
 
+import checkers.database.GameService;
+
 import java.util.List;
 /**
  * Class that operates our game 
@@ -12,7 +14,8 @@ public class Game {
     private int numberOnBoard;
     private int ID;
     int [][] Board;
-    public Game(int numberOfPlayers,int ID, String variant) {
+    private GameService gameService;
+    public Game(int numberOfPlayers, int ID, String variant) {
         this.numberOfPlayers = numberOfPlayers;
         this.ID=ID;
         switch(variant){
@@ -30,6 +33,30 @@ public class Game {
             board.createBoard(numberOfPlayers);
             movement = new Movement(board.getBoard());
             break;
+        }
+        Board=board.getBoard();
+    }
+
+
+    public Game(int numberOfPlayers, int ID, String variant, GameService gameService) {
+        this.numberOfPlayers = numberOfPlayers;
+        this.ID=ID;
+        this.gameService = gameService;
+        switch(variant){
+            case "s": board = new Board(gameService);
+                board.createBoard(numberOfPlayers);
+                movement = new FastMovement(board.getBoard());
+                break;
+            case "r":
+                board = new RandomBoard(gameService);
+                board.createBoard(numberOfPlayers);
+                movement = new Movement(board.getBoard());
+                break;
+            case "d":
+                board = new Board(gameService);
+                board.createBoard(numberOfPlayers);
+                movement = new Movement(board.getBoard());
+                break;
         }
         Board=board.getBoard();
     }
