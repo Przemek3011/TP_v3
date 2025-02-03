@@ -1,7 +1,12 @@
 package checkers.server;
 
+import checkers.Dao.GameDao;
+import checkers.Dao.MoveDao;
 import checkers.Game.Game;
 import checkers.Game.Bot;
+import checkers.entity.Move;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.support.ClassPathXmlApplicationContext;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -31,8 +36,14 @@ public class Server {
     private static int clientCounter = 0;
     private int currentTurnIndex = 0;
 
+    private int moveCounter;
+
     private Game game;
-    private int[][] board; 
+    private int[][] board;
+
+    ApplicationContext appContext;
+
+    checkers.entity.Game gameEntity;
 
     /**
      * Server constructor.
@@ -49,6 +60,23 @@ public class Server {
         this.numberOfBots = numberOfBots;
 
         this.clientHandlers = new ArrayList<>();
+
+        // ---------------------------------------------------------
+
+        // Initiate context class, then create a Game reference and save it to database.
+
+        this.appContext = new ClassPathXmlApplicationContext(
+                "spring-configuration.xml");
+
+        this.gameEntity = new checkers.entity.Game(numOfPlayers);
+
+        GameDao gameDao = (GameDao) appContext.getBean("GameDao");
+
+        gameDao.saveGame(gameEntity);
+
+        this.moveCounter = 0;
+
+        // ---------------------------------------------------------
     }
 
     /**
@@ -199,6 +227,17 @@ public class Server {
 
                 game.setGamePiece(y2, x2, pieceValue);
                 game.setGamePiece(y1, x1, 1);
+
+                // ---------------------------------------------------------
+                // Initiate new move, then save it to database.
+
+                Move move = new Move(this.gameEntity, ++moveCounter, x1, y1, x2, y2);
+
+                MoveDao moveDao = (MoveDao) appContext.getBean("MoveDao");
+
+                moveDao.saveMove(move);
+
+                // ---------------------------------------------------------
 
                 broadcastMessage("SERVER: Player #" + clientID
                     + " moved from (" + y1 + "," + x1 
