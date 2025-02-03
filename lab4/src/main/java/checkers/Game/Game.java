@@ -92,7 +92,7 @@ public class Game {
             return true;
             break;
             case 3: 
-            if(Board[12][0]==6 && Board[12][2]==6 && Board[12][4]==6 && Board[12][6]==6 && Board[11][1]==6 && Board[11][3]==6 && Board[11][5]==6 && Board[10][2]==6 && Board[10][4]==6 && Board[9][3]==6 )
+            if(Board[12][0]==3 && Board[12][2]==3 && Board[12][4]==3 && Board[12][6]==3 && Board[11][1]==3 && Board[11][3]==3 && Board[11][5]==3 && Board[10][2]==3 && Board[10][4]==3 && Board[9][3]==3 )
             return true;
             break;
             case 4: 
