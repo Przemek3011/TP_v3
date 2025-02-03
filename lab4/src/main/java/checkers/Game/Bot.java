@@ -117,7 +117,7 @@ public class Bot {
         int[] maxmove = new int[4];
         double minS = 9999.0;
         movement.refreshBoard(board);
-        // 1) Ustal tablicę goal
+    
         int[][] possibleGoals = setGoal(numberOnBoard);
         int index_goal=0;
         int[] myGoal=new int[2];
@@ -138,8 +138,8 @@ public class Bot {
                     int temp[]={i,j};
                    FreePieces.add(temp);
                     for(int v = 0; v < moves1.length; v++) {
-                        int ny = i + moves1[v][0];  // docelowe y
-                        int nx = j + moves1[v][1];  // docelowe x
+                        int ny = i + moves1[v][0];  
+                        int nx = j + moves1[v][1];  
                         List<int[]> move = new ArrayList<>();
                         int[] singleMove = {ny, nx};
                         move.add(singleMove);
@@ -176,8 +176,8 @@ public class Bot {
             int j=temp[1];
 
             for(int v = 0; v < moves1.length; v++) {
-                int ny = i + moves1[v][0];  // docelowe y
-                int nx = j + moves1[v][1];  // docelowe x
+                int ny = i + moves1[v][0];  
+                int nx = j + moves1[v][1];  
                 List<int[]> move = new ArrayList<>();
                 int[] singleMove = {ny, nx};
                 move.add(singleMove);

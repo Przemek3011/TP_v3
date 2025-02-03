@@ -56,7 +56,7 @@ public class Server {
      */
     public void startServer() {
         try {
-            // 1) Accept (numOfPlayers - numberOfBots) human players
+            
             while(!serverSocket.isClosed() 
                && clientHandlers.size() < (numOfPlayers - numberOfBots)) {
                 
@@ -76,17 +76,15 @@ public class Server {
             this.game = new Game(numOfPlayers, 0, variant);
             this.board = game.getBoard();
 
-            // 2) Create the bot participants
             for(int i=0; i < numberOfBots; i++) {
                 clientCounter++;
                 System.out.println("Adding BOT with clientID=" + clientCounter);
 
                 PlayerBots.put(clientCounter, true);
-                // Create the actual Bot object
+
                 Bot bot = new Bot(numOfPlayers, clientCounter,game.getBoard());
                 bots.put(clientCounter, bot);
 
-                // Add to allIDs
                 allIDs.add(clientCounter);
             }
 
@@ -103,12 +101,12 @@ public class Server {
                     + " the piece value of " + pieceVal);
             }
 
-            // 5) Assign piece values to bots
+          
 
             int humanCount = clientHandlers.size();
             for(int i=0; i<numberOfBots; i++){
                 int botID = allIDs.get(humanCount ) + i  ; 
-                // or (humanCount + 1 + i) if that's how you enumerated
+               
                 Game tmp = new Game(numOfPlayers, botID, variant);
                 int pieceVal = tmp.getNumberOnBoard(numOfPlayers, botID);
                 clientIdToPieceValue.put(botID, pieceVal);
@@ -117,7 +115,7 @@ public class Server {
                     + " the piece value " + pieceVal);
             }
 
-            // 6) broadcast initial board, notify first turn
+         
             broadcastUpdatedBoard();
             notifyCurrentPlayer();
 
@@ -132,21 +130,18 @@ public class Server {
     public synchronized void handleMove(ClientHandler clientHandler, String command) {
         int clientID = clientHandler.getClientID();
         
-        // If it's a bot => ignore
+    
         if(Boolean.TRUE.equals(PlayerBots.get(clientID))) {
             System.out.println("Ignoring command from BOT (id=" + clientID + ")");
             return;
         }
 
-        // get pieceValue
         int pieceValue = clientIdToPieceValue.get(clientID);
         if(game.hasWon(pieceValue)){
             switchTurn();
             return;
         }
 
-        // Check if it's the correct turn
-        // We see who is the current ID in allIDs
         int currentID = allIDs.get(currentTurnIndex);
         if(clientID != currentID){
             clientHandler.sendMessage("SERVER: It's not your turn. Please wait.");
@@ -188,19 +183,16 @@ public class Server {
                     moves.add(new int[]{ny, nx});
                 }
 
-                // check piece ownership
                 int[][] currentBoard = game.getBoard();
                 if(currentBoard[y1][x1] != pieceValue){
                     clientHandler.sendMessage("SERVER: That piece isn't yours!");
                     return;
                 }
-                // check validity
                 if(!game.isValidMove(y1, x1, moves)){
                     clientHandler.sendMessage("SERVER: Invalid move according to game rules.");
                     return;
                 }
 
-                // do the move
                 int[] last = moves.get(moves.size()-1);
                 int y2 = last[0];
                 int x2 = last[1];
@@ -244,13 +236,12 @@ public class Server {
 
         int currentID = allIDs.get(currentTurnIndex);
 
-        // check if BOT
+
         if(Boolean.TRUE.equals(PlayerBots.get(currentID))) {
             System.out.println("SERVER: It's BOT's turn. (id="+ currentID + ")");
             handleBotTurn(currentID);
         } else {
-            // human
-            // find the clientHandler
+
             ClientHandler ch = findClientHandlerById(currentID);
             if(ch != null){
                 int pieceVal = clientIdToPieceValue.get(currentID);
@@ -282,16 +273,16 @@ public class Server {
     
         int pieceValue = clientIdToPieceValue.get(botID);
     
-        // 1) Jeśli bot już wygrał, omijamy jego kolej
+
         if (game.hasWon(pieceValue)) {
             System.out.println("Bot #" + botID + " has already won! Skipping turn...");
             switchTurn();
             return;
         }
     
-        // 2) Pobieramy aktualną planszę, wywołujemy BotMove
+  
         int[][] currentBoard = game.getBoard();
-        int[] move = bot.BotMove(currentBoard, pieceValue); // [y1,x1,y2,x2]
+        int[] move = bot.BotMove(currentBoard, pieceValue);
     
         if (move[0]==0 && move[1]==0 && move[2]==0 && move[3]==0) {
             broadcastMessage("SERVER: Bot #" + botID + " has no moves => skip");
