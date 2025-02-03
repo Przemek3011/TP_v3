@@ -15,13 +15,11 @@ public class ClientApplication {
         Scanner scanner = new Scanner(System.in);
         while(true) {
             try {
-                System.out.println("Enter number 2, 3, 4 or 6.");
+                System.out.println("Enter number ");
                 int number = Integer.parseInt(scanner.nextLine());
-                if (number != 2 && number != 3 && number != 4 && number != 6) {
-                    System.out.println("This number is wrong.");
-                } else {
+               
                     return number;
-                }
+                
             } catch (NumberFormatException e) {
                 System.out.println("Input is not a number.");
             }

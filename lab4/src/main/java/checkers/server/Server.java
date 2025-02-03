@@ -104,10 +104,11 @@ public class Server {
             }
 
             // 5) Assign piece values to bots
+
             int humanCount = clientHandlers.size();
             for(int i=0; i<numberOfBots; i++){
                 int botID = allIDs.get(humanCount ) + i  ; 
-                
+                // or (humanCount + 1 + i) if that's how you enumerated
                 Game tmp = new Game(numOfPlayers, botID, variant);
                 int pieceVal = tmp.getNumberOnBoard(numOfPlayers, botID);
                 clientIdToPieceValue.put(botID, pieceVal);
@@ -116,7 +117,7 @@ public class Server {
                     + " the piece value " + pieceVal);
             }
 
-          
+            // 6) broadcast initial board, notify first turn
             broadcastUpdatedBoard();
             notifyCurrentPlayer();
 
@@ -131,13 +132,13 @@ public class Server {
     public synchronized void handleMove(ClientHandler clientHandler, String command) {
         int clientID = clientHandler.getClientID();
         
-       
+        // If it's a bot => ignore
         if(Boolean.TRUE.equals(PlayerBots.get(clientID))) {
             System.out.println("Ignoring command from BOT (id=" + clientID + ")");
             return;
         }
 
-        
+        // get pieceValue
         int pieceValue = clientIdToPieceValue.get(clientID);
         if(game.hasWon(pieceValue)){
             switchTurn();
@@ -248,7 +249,8 @@ public class Server {
             System.out.println("SERVER: It's BOT's turn. (id="+ currentID + ")");
             handleBotTurn(currentID);
         } else {
-         
+            // human
+            // find the clientHandler
             ClientHandler ch = findClientHandlerById(currentID);
             if(ch != null){
                 int pieceVal = clientIdToPieceValue.get(currentID);
@@ -272,62 +274,54 @@ public class Server {
      */
     private synchronized void handleBotTurn(int botID) {
         Bot bot = bots.get(botID);
-        if(bot == null){
+        if (bot == null) {
             System.out.println("No Bot object for clientID=" + botID);
             switchTurn();
             return;
         }
-
-        int[][] currentBoard = game.getBoard();
+    
         int pieceValue = clientIdToPieceValue.get(botID);
-
+    
+        // 1) Jeśli bot już wygrał, omijamy jego kolej
+        if (game.hasWon(pieceValue)) {
+            System.out.println("Bot #" + botID + " has already won! Skipping turn...");
+            switchTurn();
+            return;
+        }
+    
+        // 2) Pobieramy aktualną planszę, wywołujemy BotMove
+        int[][] currentBoard = game.getBoard();
         int[] move = bot.BotMove(currentBoard, pieceValue); // [y1,x1,y2,x2]
-        if(move == null){
+    
+        if (move[0]==0 && move[1]==0 && move[2]==0 && move[3]==0) {
             broadcastMessage("SERVER: Bot #" + botID + " has no moves => skip");
             switchTurn();
             return;
         }
-
+    
         int y1 = move[0];
         int x1 = move[1];
         int y2 = move[2];
         int x2 = move[3];
-
-        // simple validation
-        if(game.hasWon(botID)){
-            switchTurn();
-        }
-        if(!isInBounds(y1,x1) || !isInBounds(y2,x2)){
-            System.out.println("Bot gave invalid coords => skip "+ y1+" "+ x1+" "+y2 +" "+x2+" piece value: "+ bot.showNumberonBoard());
+    
+        if (!isInBounds(y1,x1) || !isInBounds(y2,x2)) {
+            System.out.println("Bot gave invalid coords => skip " 
+                + y1 + " " + x1 + " " + y2 + " " + x2 
+                + " piece value: " + bot.showNumberonBoard());
             switchTurn();
             return;
         }
-        if(currentBoard[y1][x1] != bot.showNumberonBoard()){
-            System.out.println("Bot tried to move piece not his own => skip"+ y1+" "+x1+" piece value: "+ bot.showNumberonBoard());
-            switchTurn();
-            return;
-        }
-        if(currentBoard[y2][x2] != 1){
-            System.out.println("Bot's target cell not empty => skip");
-            switchTurn();
-            return;
-        }
+        else{
+            game.setGamePiece(y2, x2, pieceValue);
+            game.setGamePiece(y1, x1, 1);
+        
+            broadcastMessage("SERVER: Bot #" + botID
+                + " moved from (" + y1 + "," + x1 + ") to (" + y2 + "," + x2 + ").");
+            broadcastUpdatedBoard();
+        switchTurn();}
 
-        // perform the move
-        game.setGamePiece(y2, x2, pieceValue);
-        game.setGamePiece(y1, x1, 1);
-
-        broadcastMessage("SERVER: Bot #" + botID
-            + " moved from (" + y1 + "," + x1 + ") to (" + y2 + "," + x2 + ").");
-        broadcastUpdatedBoard();
-
-        if(game.hasWon(pieceValue)){
-            broadcastMessage("SERVER: Bot #" + botID + " has WON!!");
-            // potentially end game
-        } else {
-            switchTurn();
-        }
     }
+    
 
     private boolean isInBounds(int y, int x) {
         board = game.getBoard();
